@@ -1,0 +1,3 @@
+Flask==2.0.1
+ortools==9.2.9972
+gunicorn==20.1.0

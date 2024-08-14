@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scheduling System</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        .left-panel, .right-panel {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .left-panel {
+            background-color: #f0f0f0;
+            border-right: 1px solid #ccc;
+        }
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .day {
+            border: 1px solid #ccc;
+            padding: 5px;
+            text-align: center;
+            min-height: 80px;
+        }
+        .day-number {
+            font-weight: bold;
+        }
+        .employee-name {
+            font-size: 0.9em;
+            color: #555;
+        }
+        .weekend {
+            background-color: #f0f0f0;
+        }
+        .holiday {
+            background-color: #ffe0e0;
+        }
+        #employeeList table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #employeeList th, #employeeList td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #employeeList th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <div class="left-panel">
+        <h1>排班系統</h1>
+        
+        <div class="section">
+            <h2>初始化月份</h2>
+            <label for="year">年份：</label>
+            <input type="number" id="year" placeholder="例如：2023">
+            <label for="month">月份：</label>
+            <input type="number" id="month" placeholder="1-12">
+            <label for="holidays">假期日期（用逗號分隔）：</label>
+            <input type="text" id="holidays" placeholder="例如：1,15,30">
+            <button onclick="initializeMonth()">初始化月份</button>
+        </div>
+
+        <div class="section">
+            <h2>添加員工</h2>
+            <label for="name">員工姓名：</label>
+            <input type="text" id="name" placeholder="例如：張三">
+            <label for="weekday_shifts">平日班次數：</label>
+            <input type="number" id="weekday_shifts" placeholder="例如：10">
+            <label for="weekend_shifts">假日班次數：</label>
+            <input type="number" id="weekend_shifts" placeholder="例如：4">
+            <label for="unavailable_days">不可用日期（用逗號分隔）：</label>
+            <input type="text" id="unavailable_days" placeholder="例如：5,12,19">
+            <label for="required_days">必須值班日期（用逗號分隔）：</label>
+            <input type="text" id="required_days" placeholder="例如：7,14,21">
+            <button onclick="addEmployee()">添加員工</button>
+        </div>
+
+        <div class="section">
+            <h2>創建排班表</h2>
+            <button onclick="createSchedule()">生成排班表</button>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div id="calendar" class="calendar"></div>
+        <div id="employeeList"></div>
+    </div>
+
+    <script>
+        let holidays = [];
+
+        function initializeMonth() {
+            $.ajax({
+                url: '/initialize',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    year: parseInt($('#year').val()),
+                    month: parseInt($('#month').val()),
+                    holidays: $('#holidays').val().split(',').map(Number)
+                }),
+                success: function(response) {
+                    holidays = response.holidays;
+                    displayCalendar(response.calendar);
+                    alert('月份已初始化');
+                }
+            });
+        }
+
+        function displayCalendar(calendarData) {
+            var calendarDiv = $('#calendar');
+            calendarDiv.empty();
+
+            var dayNames = ['一', '二', '三', '四', '五', '六', '日'];
+            for (var i = 0; i < 7; i++) {
+                calendarDiv.append('<div class="day">' + dayNames[i] + '</div>');
+            }
+
+            calendarData.forEach(function(week, weekIndex) {
+                week.forEach(function(day, dayIndex) {
+                    var dayDiv = $('<div class="day"></div>');
+                    if (day !== 0) {
+                        dayDiv.append('<div class="day-number">' + day + '</div>');
+                        if (dayIndex >= 5 || holidays.includes(day)) {
+                            dayDiv.addClass(holidays.includes(day) ? 'holiday' : 'weekend');
+                            dayDiv.append('<div>假日班</div>');
+                        } else {
+                            dayDiv.append('<div>平日班</div>');
+                        }
+                    }
+                    calendarDiv.append(dayDiv);
+                });
+            });
+        }
+
+        function addEmployee() {
+            $.ajax({
+                url: '/add_employee',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    name: $('#name').val(),
+                    weekday_shifts: parseInt($('#weekday_shifts').val()),
+                    weekend_shifts: parseInt($('#weekend_shifts').val()),
+                    unavailable_days: $('#unavailable_days').val().split(',').map(Number),
+                    required_days: $('#required_days').val().split(',').map(Number)
+                }),
+                success: function(response) {
+                    displayEmployees(response.employees);
+                    alert('員工已添加');
+                }
+            });
+        }
+
+        function removeEmployee(name) {
+            $.ajax({
+                url: '/remove_employee',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({name: name}),
+                success: function(response) {
+                    displayEmployees(response.employees);
+                    alert('員工已移除');
+                }
+            });
+        }
+
+        function displayEmployees(employees) {
+            var employeeListDiv = $('#employeeList');
+            employeeListDiv.empty();
+            
+            if (employees.length > 0) {
+                var table = $('<table></table>');
+                var header = $('<tr></tr>').append(
+                    '<th>姓名</th>',
+                    '<th>平日班</th>',
+                    '<th>假日班</th>',
+                    '<th>不可用日期</th>',
+                    '<th>必須值班日期</th>',
+                    '<th>操作</th>'
+                );
+                table.append(header);
+
+                employees.forEach(function(employee) {
+                    var row = $('<tr></tr>').append(
+                        $('<td></td>').text(employee.name),
+                        $('<td></td>').text(employee.weekday_shifts),
+                        $('<td></td>').text(employee.weekend_shifts),
+                        $('<td></td>').text(employee.unavailable_days.join(', ')),
+                        $('<td></td>').text(employee.required_days.join(', ')),
+                        $('<td></td>').append(
+                            $('<button></button>')
+                                .text('移除')
+                                .click(function() { removeEmployee(employee.name); })
+                        )
+                    );
+                    table.append(row);
+                });
+
+                employeeListDiv.append(table);
+            }
+        }
+
+        function createSchedule() {
+            $.ajax({
+                url: '/create_schedule',
+                method: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        displaySchedule(response.schedule, response.year, response.month);
+                        alert('排班表已成功創建');
+                    } else {
+                        alert('創建排班表失敗: ' + response.error);
+                    }
+                },
+                error: function(jqXHR) {
+                    alert('創建排班表時發生錯誤: ' + jqXHR.responseJSON.error);
+                }
+            });
+        }
+
+        function displaySchedule(schedule, year, month) {
+            var calendarDiv = $('#calendar');
+            // 清除所有已存在的員工名稱
+            calendarDiv.find('.employee-name').remove();
+            
+            calendarDiv.find('.day').each(function(index) {
+                var dayNumber = $(this).find('.day-number').text();
+                if (dayNumber && schedule[dayNumber]) {
+                    $(this).append('<div class="employee-name">' + schedule[dayNumber] + '</div>');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
